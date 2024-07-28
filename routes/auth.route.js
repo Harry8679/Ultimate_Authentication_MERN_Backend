@@ -1,10 +1,7 @@
 const express = require('express');
+const { signup } = require('../controllers/auth.controller');
 const authRoute = express.Router();
 
-authRoute.get('/signup', (req, res) => {
-    res.json({
-        data: 'You hit signup endpoint'
-    });
-});
+authRoute.get('/signup', signup);
 
 module.exports = authRoute;
