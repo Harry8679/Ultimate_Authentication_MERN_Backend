@@ -29,3 +29,18 @@ const userSchema = new mongoose.Schema({
         default: ''
     }
 }, { timestamps: true });
+
+userSchema.virtual('password')
+    .set(function(password) {
+        // Create a temporary variable called _password
+        this._password = password;
+        // Generate salt
+        this.salt = this.makeSalt();
+        // Encrypt Password
+        this.hashed_password = this.encryptPassword(password);
+    })
+    .get(function() {
+        return this._password;
+    });
+
+module.exports = mongoose.model('User', userSchema);
