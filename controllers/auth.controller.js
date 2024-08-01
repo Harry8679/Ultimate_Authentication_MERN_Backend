@@ -1,12 +1,24 @@
 const asyncHandler = require('express-async-handler');
 const User = require('../models/user.model');
-const { sendEmail } = require('../services/emailService'); // Assurez-vous que le chemin est correct
+const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
+const dotenv = require('dotenv');
+dotenv.config();
+
+// Configuration de Nodemailer avec Gmail
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,  // Utilisez le mot de passe d'application ici
+    },
+});
 
 exports.signup = asyncHandler(async (req, res) => {
-    console.log('REQ BODY ON SIGNUP', req.body);
     const { name, email, password } = req.body;
 
     try {
+        // Rechercher un utilisateur avec le même email
         const user = await User.findOne({ email }).exec();
         if (user) {
             return res.status(400).json({
@@ -14,22 +26,31 @@ exports.signup = asyncHandler(async (req, res) => {
             });
         }
 
-        let newUser = new User({ name, email, password });
+        // Créer un token JWT pour l'activation du compte
+        const token = jwt.sign({ name, email, password }, process.env.JWT_ACCOUNT_ACTIVATION, { expiresIn: '30m' });
 
-        await newUser.save();
+        // Préparer les données de l'email
+        const mailOptions = {
+            from: process.env.EMAIL_FROM,
+            to: email,
+            subject: 'Account activation link',
+            html: `
+                <h1>Please use the following link to activate your account</h1>
+                <p>${process.env.CLIENT_URL}/auth/activate/${token}</p>
+                <hr />
+                <p>This email may contain sensitive information</p>
+                <p>${process.env.CLIENT_URL}</p>
+            `
+        };
 
-        // Envoyer un email de confirmation
-        const subject = 'Signup Confirmation';
-        const text = `Hello ${name},\n\nThank you for signing up! Please confirm your email address.`;
-        await sendEmail(email, subject, text);
+        // Envoyer l'email d'activation
+        await transporter.sendMail(mailOptions);
 
-        res.json({
-            message: 'Signup Success! Please check your email to confirm your registration.'
-        });
+        return res.json({ message: `Email has been sent to ${email}. Follow the instruction to activate your account.` });
     } catch (err) {
-        console.log('SIGNUP ERROR', err);
+        console.error('SIGNUP ERROR', err);  // Afficher l'erreur complète dans la console
         return res.status(400).json({
-            error: err.message
+            error: 'Error sending email. Please try again later.'
         });
     }
 });
